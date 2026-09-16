@@ -1,31 +1,32 @@
-
 import io
+import re
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
 
-st.set_page_config(page_title="Scientific Plotter", page_icon="📈", layout="wide")
+st.set_page_config(page_title="KodaPlot", page_icon="📈", layout="wide")
 
 lang = "en" if st.sidebar.toggle("English", value=False) else "es"
 
 TXT = {
 "es":{
-"title":"Graficador científico simple",
-"caption":"Carga o pega datos, crea un gráfico, ajusta una regresión lineal, extrapola y exporta la figura.",
-"data":"1. Datos","method":"¿Cómo querés cargar los datos?","paste":"Pegar datos","upload":"Subir archivo CSV",
-"pastebox":"Pegá una tabla con encabezados","uploadbox":"Seleccioná un archivo CSV","needdata":"Pegá una tabla con al menos dos columnas o cargá un CSV.",
+"title":"KodaPlot",
+"caption":"Graficador científico simple para visualizar datos, ajustar regresiones lineales, extrapolar y exportar figuras.",
+"data":"1. Datos","example":"Ejemplo","method":"¿Cómo querés cargar los datos?","paste":"Pegar datos","upload":"Subir archivo CSV",
+"pastebox":"Pegá una tabla con encabezados","uploadbox":"Seleccioná un archivo CSV","needdata":"Pegá una tabla con al menos dos columnas, cargá un CSV o hacé clic en Ejemplo.",
 "neednum":"Se necesitan al menos dos columnas numéricas.","datahead":"Datos","vars":"2. Variables","xvar":"Variable del eje X","yvar":"Variable del eje Y",
 "appearance":"3. Apariencia","point":"Tamaño de los puntos","axisfont":"Tamaño de fuente de los ejes","tickfont":"Tamaño de los números de los ejes",
-"xlabel":"Etiqueta del eje X","ylabel":"Etiqueta del eje Y","sig":"Cifras significativas",
+"xlabel":"Etiqueta del eje X","ylabel":"Etiqueta del eje Y",
 "reg":"4. Regresión lineal","showreg":"Mostrar regresión lineal","fithelp":"El rango de ajuste define qué datos se usan para calcular la regresión.",
 "fitmin":"Inicio del rango de ajuste","fitmax":"Fin del rango de ajuste","linehelp":"El rango de la línea define hasta dónde se muestra o extrapola la recta.",
 "linemin":"Inicio de la línea","linemax":"Fin de la línea",
 "pred":"5. Predicción sobre la recta","showpred":"Mostrar predicción","predmode":"¿Qué querés predecir?",
 "predy":"Predecir Y a partir de X","predx":"Predecir X a partir de Y","knownx":"Valor de X conocido","knowny":"Valor de Y conocido",
-"limits":"6. Límites de los ejes","autolimits":"Ajustar ejes automáticamente","margin":"Margen automático (%)",
+"sigsection":"6. Cifras significativas","sig":"Cifras significativas","sighelp":"El valor inicial se estima a partir de la precisión de los datos cargados.",
+"limits":"7. Límites de los ejes","autolimits":"Ajustar ejes automáticamente","margin":"Margen automático (%)",
 "xmin":"X mínimo","xmax":"X máximo","ymin":"Y mínimo","ymax":"Y máximo","badlim":"Los límites mínimos deben ser menores que los máximos.",
-"export":"7. Exportación","width":"Ancho de la figura (pulgadas)","height":"Alto de la figura (pulgadas)","dpi":"Resolución (DPI)",
+"export":"8. Exportación","width":"Ancho de la figura (pulgadas)","height":"Alto de la figura (pulgadas)","dpi":"Resolución (DPI)",
 "plot":"Gráfico","results":"Resultados","slope":"Pendiente","intercept":"Ordenada al origen","r2":"R²","equation":"Ecuación",
 "range":"Rango de datos usado","complete":"Completo","partial":"Parcial","fromto":"de {a} a {b}",
 "predyr":"Y predicho para X = {v}","predxr":"X predicho para Y = {v}",
@@ -34,21 +35,22 @@ TXT = {
 "activate":"Activá la regresión lineal para ver los resultados.","exportfig":"Exportar figura","download":"Descargar {fmt}"
 },
 "en":{
-"title":"Simple scientific plotter",
-"caption":"Load or paste data, create a plot, fit a linear regression, extrapolate, and export the figure.",
-"data":"1. Data","method":"How do you want to load the data?","paste":"Paste data","upload":"Upload CSV file",
-"pastebox":"Paste a table with headers","uploadbox":"Select a CSV file","needdata":"Paste a table with at least two columns or upload a CSV file.",
+"title":"KodaPlot",
+"caption":"A simple scientific plotter for visualizing data, fitting linear regressions, extrapolating, and exporting figures.",
+"data":"1. Data","example":"Example","method":"How do you want to load the data?","paste":"Paste data","upload":"Upload CSV file",
+"pastebox":"Paste a table with headers","uploadbox":"Select a CSV file","needdata":"Paste a table with at least two columns, upload a CSV, or click Example.",
 "neednum":"At least two numeric columns are required.","datahead":"Data","vars":"2. Variables","xvar":"X-axis variable","yvar":"Y-axis variable",
 "appearance":"3. Appearance","point":"Point size","axisfont":"Axis-label font size","tickfont":"Axis-number font size",
-"xlabel":"X-axis label","ylabel":"Y-axis label","sig":"Significant figures",
+"xlabel":"X-axis label","ylabel":"Y-axis label",
 "reg":"4. Linear regression","showreg":"Show linear regression","fithelp":"The fit range defines which data are used to calculate the regression.",
 "fitmin":"Fit range start","fitmax":"Fit range end","linehelp":"The line range defines how far the fitted line is displayed or extrapolated.",
 "linemin":"Line start","linemax":"Line end",
 "pred":"5. Prediction from the fitted line","showpred":"Show prediction","predmode":"What do you want to predict?",
 "predy":"Predict Y from X","predx":"Predict X from Y","knownx":"Known X value","knowny":"Known Y value",
-"limits":"6. Axis limits","autolimits":"Adjust axes automatically","margin":"Automatic margin (%)",
+"sigsection":"6. Significant figures","sig":"Significant figures","sighelp":"The initial value is estimated from the precision of the loaded data.",
+"limits":"7. Axis limits","autolimits":"Adjust axes automatically","margin":"Automatic margin (%)",
 "xmin":"X minimum","xmax":"X maximum","ymin":"Y minimum","ymax":"Y maximum","badlim":"Minimum limits must be smaller than maximum limits.",
-"export":"7. Export","width":"Figure width (inches)","height":"Figure height (inches)","dpi":"Resolution (DPI)",
+"export":"8. Export","width":"Figure width (inches)","height":"Figure height (inches)","dpi":"Resolution (DPI)",
 "plot":"Plot","results":"Results","slope":"Slope","intercept":"Y-intercept","r2":"R²","equation":"Equation",
 "range":"Data range used","complete":"Complete","partial":"Partial","fromto":"from {a} to {b}",
 "predyr":"Predicted Y at X = {v}","predxr":"Predicted X at Y = {v}",
@@ -60,39 +62,7 @@ TXT = {
 st.title(TXT["title"])
 st.caption(TXT["caption"])
 
-def read_data(text):
-    if not text.strip():
-        return None
-    for sep in ["\t", ",", ";"]:
-        try:
-            df = pd.read_csv(io.StringIO(text.strip()), sep=sep)
-            if df.shape[1] >= 2:
-                return df
-        except Exception:
-            pass
-    try:
-        df = pd.read_csv(io.StringIO(text.strip()), sep=r"\s+", engine="python")
-        return df if df.shape[1] >= 2 else None
-    except Exception:
-        return None
-
-def num(s):
-    return pd.to_numeric(s, errors="coerce")
-
-def fs(v, n):
-    if v is None or not np.isfinite(v):
-        return "—"
-    return f"{v:.{n}g}"
-
-# ---------------------------------------------------------
-# Data
-# ---------------------------------------------------------
-st.sidebar.header(TXT["data"])
-
-mode = st.sidebar.radio(TXT["method"], [TXT["paste"], TXT["upload"]], index=0)
-
-df = None
-example = """Time\tTemperature
+EXAMPLE_DATA = """Time\tTemperature
 0.0\t24.8
 0.5\t25.3
 1.0\t24.9
@@ -107,16 +77,122 @@ example = """Time\tTemperature
 5.5\t52.7
 6.0\t50.3"""
 
-if mode == TXT["paste"]:
-    df = read_data(st.sidebar.text_area(TXT["pastebox"], value=example, height=250))
+
+def read_data(text):
+    """Read pasted data while preserving the original cell strings."""
+    if not text.strip():
+        return None
+    for sep in ["\t", ",", ";"]:
+        try:
+            df = pd.read_csv(io.StringIO(text.strip()), sep=sep, dtype=str)
+            if df.shape[1] >= 2:
+                return df
+        except Exception:
+            pass
+    try:
+        df = pd.read_csv(io.StringIO(text.strip()), sep=r"\s+", engine="python", dtype=str)
+        return df if df.shape[1] >= 2 else None
+    except Exception:
+        return None
+
+
+def num(s):
+    return pd.to_numeric(s, errors="coerce")
+
+
+def fs(v, n):
+    if v is None or not np.isfinite(v):
+        return "—"
+    return f"{v:.{n}g}"
+
+
+def count_sig_figs(value):
+    """Estimate significant figures from the user's original text representation."""
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+
+    s = str(value).strip()
+    if not s:
+        return None
+
+    s = s.replace(",", ".")
+    s = s.lstrip("+-")
+
+    # Remove exponent but retain the mantissa precision.
+    mantissa = re.split(r"[eE]", s)[0]
+
+    if not re.search(r"\d", mantissa):
+        return None
+
+    if "." in mantissa:
+        before, after = mantissa.split(".", 1)
+        digits = before + after
+        significant = digits.lstrip("0")
+
+        # For zero values, decimal places convey precision: 0.0 -> 1, 0.00 -> 2.
+        if significant == "":
+            return max(1, len(after))
+        return len(significant)
+
+    digits = re.sub(r"\D", "", mantissa).lstrip("0")
+    return max(1, len(digits)) if digits else 1
+
+
+def infer_sig_figs(df, xcol, ycol):
+    """Use the higher typical precision of X and Y as a practical default."""
+    medians = []
+    for col in [xcol, ycol]:
+        counts = [count_sig_figs(v) for v in df[col].dropna()]
+        counts = [c for c in counts if c is not None]
+        if counts:
+            medians.append(float(np.median(counts)))
+
+    if not medians:
+        return 3
+
+    return int(np.clip(round(max(medians)), 1, 8))
+
+
+# ---------------------------------------------------------
+# Data
+# ---------------------------------------------------------
+header_col, example_col = st.sidebar.columns([2.2, 1])
+with header_col:
+    st.header(TXT["data"])
+with example_col:
+    st.write("")
+    if st.button(TXT["example"], use_container_width=True):
+        st.session_state["load_mode"] = "paste"
+        st.session_state["data_text"] = EXAMPLE_DATA
+
+mode = st.sidebar.radio(
+    TXT["method"],
+    ["paste", "upload"],
+    format_func=lambda x: TXT["paste"] if x == "paste" else TXT["upload"],
+    index=0,
+    key="load_mode"
+)
+
+df = None
+
+if mode == "paste":
+    if "data_text" not in st.session_state:
+        st.session_state["data_text"] = ""
+
+    pasted_text = st.sidebar.text_area(
+        TXT["pastebox"],
+        height=250,
+        key="data_text"
+    )
+    df = read_data(pasted_text)
 else:
     f = st.sidebar.file_uploader(TXT["uploadbox"], type=["csv"])
     if f is not None:
         try:
-            df = pd.read_csv(f)
+            df = pd.read_csv(f, dtype=str)
         except Exception:
             f.seek(0)
-            df = pd.read_csv(f, sep=";")
+            df = pd.read_csv(f, sep=";", dtype=str)
 
 if df is None or df.shape[1] < 2:
     st.info(TXT["needdata"])
@@ -140,7 +216,6 @@ ycol = st.sidebar.selectbox(TXT["yvar"], numeric_cols, index=1 if len(numeric_co
 
 xv = num(df[xcol])
 yv = num(df[ycol])
-
 base = pd.DataFrame({"x": xv, "y": yv}).dropna()
 
 xd0 = float(base["x"].min())
@@ -150,6 +225,29 @@ yd1 = float(base["y"].max())
 
 xs = xd1 - xd0 or 1.0
 ys = yd1 - yd0 or 1.0
+
+# Reset sensible defaults only when the data/selected variables change.
+data_signature = (
+    xcol,
+    ycol,
+    len(base),
+    float(base["x"].sum()),
+    float(base["y"].sum()),
+    xd0,
+    xd1,
+    yd0,
+    yd1,
+)
+
+if st.session_state.get("data_signature") != data_signature:
+    st.session_state["data_signature"] = data_signature
+    st.session_state["fitmin"] = xd0
+    st.session_state["fitmax"] = xd1
+    st.session_state["linemin"] = xd0
+    st.session_state["linemax"] = xd1
+    st.session_state["sigfigs"] = infer_sig_figs(df, xcol, ycol)
+    st.session_state["known_x"] = float(xd0 + xs / 3)
+    st.session_state["known_y"] = float(yd0 + ys / 2)
 
 # ---------------------------------------------------------
 # Appearance
@@ -162,8 +260,6 @@ tf = st.sidebar.slider(TXT["tickfont"], 8, 26, 14)
 
 xl = st.sidebar.text_input(TXT["xlabel"], value=str(xcol))
 yl = st.sidebar.text_input(TXT["ylabel"], value=str(ycol))
-
-sig = st.sidebar.slider(TXT["sig"], 1, 8, 4)
 
 # ---------------------------------------------------------
 # Regression
@@ -180,29 +276,26 @@ if showreg:
 
     fitmin = st.sidebar.number_input(
         TXT["fitmin"],
-        value=float(max(xd0, xd1 - 3))
+        key="fitmin"
     )
     fitmax = st.sidebar.number_input(
         TXT["fitmax"],
-        value=float(xd1)
+        key="fitmax"
     )
 
     st.sidebar.caption(TXT["linehelp"])
 
-    # Default extrapolation starts at 1 when the data range allows it.
-    default_line_min = 1.0 if xd0 <= 1.0 <= xd1 else float(xd0)
-
     linemin = st.sidebar.number_input(
         TXT["linemin"],
-        value=float(default_line_min)
+        key="linemin"
     )
     linemax = st.sidebar.number_input(
         TXT["linemax"],
-        value=float(xd1)
+        key="linemax"
     )
 
 # ---------------------------------------------------------
-# Calculate regression early so auto-limits can use it
+# Calculate regression early so prediction and auto-limits can use it
 # ---------------------------------------------------------
 reg_ok = False
 m = b = r2 = None
@@ -246,7 +339,7 @@ if showreg:
             predmode = "y_from_x"
             known = st.sidebar.number_input(
                 TXT["knownx"],
-                value=float(xd0 + xs / 3)
+                key="known_x"
             )
 
             if reg_ok:
@@ -257,7 +350,7 @@ if showreg:
             predmode = "x_from_y"
             known = st.sidebar.number_input(
                 TXT["knowny"],
-                value=float(yd0 + ys / 2)
+                key="known_y"
             )
 
             if reg_ok:
@@ -267,6 +360,19 @@ if showreg:
                     pred_err = "zero"
                 else:
                     px = (known - b) / m
+
+# ---------------------------------------------------------
+# Significant figures
+# ---------------------------------------------------------
+st.sidebar.header(TXT["sigsection"])
+st.sidebar.caption(TXT["sighelp"])
+
+sig = st.sidebar.slider(
+    TXT["sig"],
+    min_value=1,
+    max_value=8,
+    key="sigfigs"
+)
 
 # ---------------------------------------------------------
 # Axis limits
@@ -283,18 +389,18 @@ auto_margin = st.sidebar.slider(
     step=1
 ) / 100.0
 
-# Start with measured data
+# Start with measured data.
 all_x = list(base["x"].to_numpy())
 all_y = list(base["y"].to_numpy())
 
-# Add the complete displayed regression line
+# Add the complete displayed regression line.
 if reg_ok and linemin < linemax:
     xx_for_limits = np.linspace(linemin, linemax, 300)
     yy_for_limits = m * xx_for_limits + b
     all_x.extend(xx_for_limits.tolist())
     all_y.extend(yy_for_limits.tolist())
 
-# Add predicted point
+# Add predicted point.
 if showpred and pred_err is None and px is not None and py is not None:
     all_x.append(float(px))
     all_y.append(float(py))
@@ -465,14 +571,10 @@ if showreg and reg_ok:
 
 ax.set_xlabel(xl, fontsize=af)
 ax.set_ylabel(yl, fontsize=af)
-
 ax.tick_params(axis="both", labelsize=tf)
-
 ax.set_xlim(xmin, xmax)
 ax.set_ylim(ymin, ymax)
-
 ax.grid(False)
-
 fig.tight_layout()
 
 # ---------------------------------------------------------
@@ -509,7 +611,7 @@ with c2:
             else:
                 st.write(
                     f"{TXT['partial']} "
-                    f"({TXT['fromto'].format(a=fs(fitmin,sig), b=fs(fitmax,sig))})"
+                    f"({TXT['fromto'].format(a=fs(fitmin, sig), b=fs(fitmax, sig))})"
                 )
 
             if showpred:
@@ -527,7 +629,6 @@ with c2:
                         TXT["predxr"].format(v=fs(known, sig)),
                         fs(res["px"], sig)
                     )
-
     else:
         st.caption(TXT["activate"])
 
@@ -565,7 +666,7 @@ for fmt, col, mime in [
         st.download_button(
             TXT["download"].format(fmt=fmt),
             buf.getvalue(),
-            file_name=f"scientific_plot.{fmt.lower()}",
+            file_name=f"kodaplot.{fmt.lower()}",
             mime=mime,
             use_container_width=True
         )
