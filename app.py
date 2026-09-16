@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 import re
 import json
 import numpy as np
@@ -6,7 +7,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import streamlit as st
 
-st.set_page_config(page_title="KodaPlot", page_icon="📈", layout="wide")
+APP_DIR = Path(__file__).resolve().parent
+LOGO_PATH = APP_DIR / "kodaplot_logo.png"
+
+page_icon = str(LOGO_PATH) if LOGO_PATH.exists() else "📈"
+st.set_page_config(page_title="KodaPlot", page_icon=page_icon, layout="wide")
 
 lang = "en" if st.sidebar.toggle("English", value=False) else "es"
 
@@ -66,8 +71,29 @@ TXT = {
 "analysis_loaded":"Analysis loaded successfully."
 }}[lang]
 
-st.title(TXT["title"])
-st.caption(TXT["caption"])
+# ---------------------------------------------------------
+# Compact KodaPlot header
+# ---------------------------------------------------------
+header_logo, header_text = st.columns([0.08, 0.92], gap="small")
+
+with header_logo:
+    if LOGO_PATH.exists():
+        st.image(str(LOGO_PATH), width=64)
+    else:
+        st.markdown("### 📈")
+
+with header_text:
+    st.markdown(
+        f"<h1 style='margin:0; padding:0; line-height:1.05;'>{TXT['title']}</h1>",
+        unsafe_allow_html=True
+    )
+    st.markdown(
+        f"<p style='margin:0.25rem 0 0 0; color:#6b7280; font-size:0.95rem;'>"
+        f"{TXT['caption']}</p>",
+        unsafe_allow_html=True
+    )
+
+st.markdown("<div style='height:0.35rem'></div>", unsafe_allow_html=True)
 
 EXAMPLE_DATA = """Time\tTemperature
 0.0\t24.8
