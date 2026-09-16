@@ -1,4 +1,5 @@
 import io
+import base64
 from pathlib import Path
 import re
 import json
@@ -8,10 +9,19 @@ import matplotlib.pyplot as plt
 import streamlit as st
 
 APP_DIR = Path(__file__).resolve().parent
-LOGO_PATH = APP_DIR / "kodaplot_logo.png"
+LOGO_LIGHT_PATH = APP_DIR / "kodaplot_logo_light.png"
+LOGO_DARK_PATH = APP_DIR / "kodaplot_logo_dark.png"
 
-page_icon = str(LOGO_PATH) if LOGO_PATH.exists() else "📈"
-st.set_page_config(page_title="KodaPlot", page_icon=page_icon, layout="wide")
+def _image_to_base64(path):
+    try:
+        return base64.b64encode(path.read_bytes()).decode("utf-8")
+    except Exception:
+        return None
+
+LIGHT_LOGO_B64 = _image_to_base64(LOGO_LIGHT_PATH)
+DARK_LOGO_B64 = _image_to_base64(LOGO_DARK_PATH)
+
+st.set_page_config(page_title="KodaPlot", page_icon="📈", layout="wide")
 
 lang = "en" if st.sidebar.toggle("English", value=False) else "es"
 
@@ -72,13 +82,46 @@ TXT = {
 }}[lang]
 
 # ---------------------------------------------------------
-# Compact KodaPlot header
+# Compact professional header with automatic light/dark logo
 # ---------------------------------------------------------
-header_logo, header_text = st.columns([0.08, 0.92], gap="small")
+header_logo, header_text = st.columns([0.10, 0.90], gap="small")
 
 with header_logo:
-    if LOGO_PATH.exists():
-        st.image(str(LOGO_PATH), width=64)
+    if LIGHT_LOGO_B64 or DARK_LOGO_B64:
+        light_src = f"data:image/png;base64,{LIGHT_LOGO_B64}" if LIGHT_LOGO_B64 else ""
+        dark_src = f"data:image/png;base64,{DARK_LOGO_B64}" if DARK_LOGO_B64 else ""
+        st.markdown(
+            f"""
+            <style>
+            .kp-logo-box {{
+                display:flex;
+                align-items:center;
+                justify-content:flex-start;
+                min-height:70px;
+            }}
+            .kp-logo-light, .kp-logo-dark {{
+                width:58px;
+                height:auto;
+            }}
+            .kp-logo-dark {{
+                display:none;
+            }}
+            @media (prefers-color-scheme: dark) {{
+                .kp-logo-light {{ display:none; }}
+                .kp-logo-dark {{ display:block; }}
+            }}
+            @media (prefers-color-scheme: light) {{
+                .kp-logo-light {{ display:block; }}
+                .kp-logo-dark {{ display:none; }}
+            }}
+            </style>
+            <div class="kp-logo-box">
+                <img class="kp-logo-light" src="{light_src}" alt="KodaPlot logo">
+                <img class="kp-logo-dark" src="{dark_src}" alt="KodaPlot logo">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     else:
         st.markdown("### 📈")
 
@@ -88,12 +131,11 @@ with header_text:
         unsafe_allow_html=True
     )
     st.markdown(
-        f"<p style='margin:0.25rem 0 0 0; color:#6b7280; font-size:0.95rem;'>"
-        f"{TXT['caption']}</p>",
+        f"<p style='margin:0.2rem 0 0 0; opacity:0.75; font-size:0.98rem;'>{TXT['caption']}</p>",
         unsafe_allow_html=True
     )
 
-st.markdown("<div style='height:0.35rem'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:0.15rem'></div>", unsafe_allow_html=True)
 
 EXAMPLE_DATA = """Time\tTemperature
 0.0\t24.8
