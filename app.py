@@ -331,14 +331,19 @@ if st.session_state.get("data_signature") != data_signature:
             st.session_state["linemax"] = 6.0
             st.session_state["known_x"] = 2.0
             st.session_state["known_y"] = float(yd0 + ys / 2)
+            st.session_state["show_prediction"] = True
+            st.session_state["prediction_mode"] = "y_from_x"
         else:
-            # Generic datasets start with the complete X range and no extrapolation.
+            # Generic datasets start with the complete X range, no extrapolation,
+            # and prediction hidden by default.
             st.session_state["fitmin"] = xd0
             st.session_state["fitmax"] = xd1
             st.session_state["linemin"] = xd0
             st.session_state["linemax"] = xd1
             st.session_state["known_x"] = float(xd0 + xs / 3)
             st.session_state["known_y"] = float(yd0 + ys / 2)
+            st.session_state["show_prediction"] = False
+            st.session_state["prediction_mode"] = "y_from_x"
 
         st.session_state["sigfigs"] = infer_sig_figs(df, xcol, ycol)
         st.session_state["x_label"] = str(xcol)
@@ -353,7 +358,7 @@ st.session_state.setdefault("point_size", 60)
 st.session_state.setdefault("axis_font", 16)
 st.session_state.setdefault("tick_font", 14)
 st.session_state.setdefault("show_regression", True)
-st.session_state.setdefault("show_prediction", True)
+st.session_state.setdefault("show_prediction", False)
 st.session_state.setdefault("prediction_mode", "y_from_x")
 st.session_state.setdefault("auto_limits", True)
 st.session_state.setdefault("auto_margin_pct", 7)
