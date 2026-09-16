@@ -156,11 +156,10 @@ def infer_sig_figs(df, xcol, ycol):
 # ---------------------------------------------------------
 # Data
 # ---------------------------------------------------------
-header_col, example_col = st.sidebar.columns([2.2, 1])
+header_col, example_col = st.sidebar.columns([1.35, 1.0], vertical_alignment="center")
 with header_col:
-    st.header(TXT["data"])
+    st.markdown(f"### {TXT['data']}")
 with example_col:
-    st.write("")
     if st.button(TXT["example"], use_container_width=True):
         st.session_state["load_mode"] = "paste"
         st.session_state["data_text"] = EXAMPLE_DATA
@@ -185,7 +184,9 @@ if mode == "paste":
         key="data_text"
     )
     df = read_data(pasted_text)
+    is_example = pasted_text.strip() == EXAMPLE_DATA.strip()
 else:
+    is_example = False
     f = st.sidebar.file_uploader(TXT["uploadbox"], type=["csv"])
     if f is not None:
         try:
@@ -241,13 +242,25 @@ data_signature = (
 
 if st.session_state.get("data_signature") != data_signature:
     st.session_state["data_signature"] = data_signature
-    st.session_state["fitmin"] = xd0
-    st.session_state["fitmax"] = xd1
-    st.session_state["linemin"] = xd0
-    st.session_state["linemax"] = xd1
+
+    if is_example:
+        # Demonstration defaults for the built-in cooling example only.
+        st.session_state["fitmin"] = 3.0
+        st.session_state["fitmax"] = 6.0
+        st.session_state["linemin"] = 1.0
+        st.session_state["linemax"] = 6.0
+        st.session_state["known_x"] = 2.0
+        st.session_state["known_y"] = float(yd0 + ys / 2)
+    else:
+        # Generic datasets start with the complete X range and no extrapolation.
+        st.session_state["fitmin"] = xd0
+        st.session_state["fitmax"] = xd1
+        st.session_state["linemin"] = xd0
+        st.session_state["linemax"] = xd1
+        st.session_state["known_x"] = float(xd0 + xs / 3)
+        st.session_state["known_y"] = float(yd0 + ys / 2)
+
     st.session_state["sigfigs"] = infer_sig_figs(df, xcol, ycol)
-    st.session_state["known_x"] = float(xd0 + xs / 3)
-    st.session_state["known_y"] = float(yd0 + ys / 2)
 
 # ---------------------------------------------------------
 # Appearance
