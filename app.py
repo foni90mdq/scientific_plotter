@@ -31,7 +31,7 @@ TXT = {
 "caption":"Graficador científico simple para visualizar datos, ajustar regresiones lineales, extrapolar y exportar figuras.",
 "data":"1. Datos","example":"Ejemplo","clear":"Vaciar","method":"¿Cómo querés cargar los datos?","paste":"Pegar datos","upload":"Subir archivo CSV",
 "pastebox":"Pegá una tabla con encabezados","uploadbox":"Seleccioná un archivo CSV","needdata":"Pegá una tabla con al menos dos columnas, cargá un CSV o hacé clic en Ejemplo.",
-"neednum":"Se necesitan al menos dos columnas numéricas.","datahead":"Datos","vars":"2. Variables","xvar":"Variable del eje X","yvar":"Variable del eje Y",
+"neednum":"No pude encontrar al menos dos columnas numéricas.","nonnumeric":"Hay valores que no se pueden interpretar como números en las columnas seleccionadas.","numhint":"Revisá que las celdas contengan solo números. Podés usar punto o coma como separador decimal. Poné unidades o comentarios en los encabezados, no dentro de las celdas.","badvalues":"Valores problemáticos: {values}","datahead":"Datos","vars":"2. Variables","xvar":"Variable del eje X","yvar":"Variable del eje Y",
 "appearance":"3. Apariencia","point":"Tamaño de los puntos","axisfont":"Tamaño de fuente de los ejes","tickfont":"Tamaño de los números de los ejes",
 "xlabel":"Etiqueta del eje X","ylabel":"Etiqueta del eje Y",
 "reg":"4. Regresión lineal","showreg":"Mostrar regresión lineal","fithelp":"El rango de ajuste define qué datos se usan para calcular la regresión.",
@@ -58,7 +58,7 @@ TXT = {
 "caption":"A simple scientific plotter for visualizing data, fitting linear regressions, extrapolating, and exporting figures.",
 "data":"1. Data","example":"Example","clear":"Clear","method":"How do you want to load the data?","paste":"Paste data","upload":"Upload CSV file",
 "pastebox":"Paste a table with headers","uploadbox":"Select a CSV file","needdata":"Paste a table with at least two columns, upload a CSV, or click Example.",
-"neednum":"At least two numeric columns are required.","datahead":"Data","vars":"2. Variables","xvar":"X-axis variable","yvar":"Y-axis variable",
+"neednum":"I could not find at least two numeric columns.","nonnumeric":"Some values in the selected columns cannot be interpreted as numbers.","numhint":"Check that data cells contain numbers only. You may use either a period or a comma as the decimal separator. Put units or comments in the headers, not inside data cells.","badvalues":"Problematic values: {values}","datahead":"Data","vars":"2. Variables","xvar":"X-axis variable","yvar":"Y-axis variable",
 "appearance":"3. Appearance","point":"Point size","axisfont":"Axis-label font size","tickfont":"Axis-number font size",
 "xlabel":"X-axis label","ylabel":"Y-axis label",
 "reg":"4. Linear regression","showreg":"Show linear regression","fithelp":"The fit range defines which data are used to calculate the regression.",
@@ -153,27 +153,137 @@ EXAMPLE_DATA = """Time\tTemperature
 6.0\t50.3"""
 
 
-def read_data(text):
-    """Read pasted data while preserving the original cell strings."""
-    if not text.strip():
+def _detect_separator(text):
+    """
+    Detect the table delimiter without confusing decimal commas with CSV commas.
+    Preference is based on the header / first non-empty line.
+    """
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
         return None
-    for sep in ["\t", ",", ";"]:
-        try:
-            df = pd.read_csv(io.StringIO(text.strip()), sep=sep, dtype=str)
-            if df.shape[1] >= 2:
-                return df
-        except Exception:
-            pass
+
+    first = lines[0]
+
+    # Spreadsheet copy/paste normally uses tabs.
+    if "\t" in first:
+        return "\t"
+
+    # European CSVs commonly use semicolons when commas are decimal marks.
+    if ";" in first:
+        return ";"
+
+    # Standard CSV.
+    if "," in first:
+        return ","
+
+    # Otherwise try whitespace-separated data.
+    return r"\s+"
+
+
+def read_data(text):
+    """Read pasted/uploaded data while preserving the original cell strings."""
+    if text is None or not str(text).strip():
+        return None
+
+    text = str(text).replace("\ufeff", "").strip()
+    sep = _detect_separator(text)
+
     try:
-        df = pd.read_csv(io.StringIO(text.strip()), sep=r"\s+", engine="python", dtype=str)
+        if sep == r"\s+":
+            df = pd.read_csv(
+                io.StringIO(text),
+                sep=sep,
+                engine="python",
+                dtype=str
+            )
+        else:
+            df = pd.read_csv(
+                io.StringIO(text),
+                sep=sep,
+                dtype=str
+            )
+
+        # If delimiter detection produced only one column, try other sensible options.
+        if df.shape[1] < 2:
+            for alt in ["\t", ";", ",", r"\s+"]:
+                if alt == sep:
+                    continue
+                try:
+                    candidate = pd.read_csv(
+                        io.StringIO(text),
+                        sep=alt,
+                        engine="python" if alt == r"\s+" else "c",
+                        dtype=str
+                    )
+                    if candidate.shape[1] >= 2:
+                        df = candidate
+                        break
+                except Exception:
+                    pass
+
         return df if df.shape[1] >= 2 else None
+
     except Exception:
         return None
 
 
-def num(s):
-    return pd.to_numeric(s, errors="coerce")
+def _parse_number(value):
+    """
+    Parse a number accepting either decimal point or decimal comma.
 
+    Examples:
+      1.25  -> 1.25
+      1,25  -> 1.25
+      1 234,5 -> 1234.5
+      1,234.5 -> 1234.5
+      1.234,5 -> 1234.5
+    """
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return np.nan
+
+    s = str(value).strip()
+    if s == "":
+        return np.nan
+
+    # Normalize spaces often used as thousands separators.
+    s = s.replace("\u00a0", "").replace("\u202f", "").replace(" ", "")
+
+    # Accept unicode minus.
+    s = s.replace("−", "-")
+
+    # If both separators occur, the right-most one is treated as decimal.
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            # Example: 1.234,56
+            s = s.replace(".", "")
+            s = s.replace(",", ".")
+        else:
+            # Example: 1,234.56
+            s = s.replace(",", "")
+    elif "," in s:
+        # Decimal comma.
+        s = s.replace(",", ".")
+
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return np.nan
+
+
+def num(s):
+    """Convert a pandas Series using locale-friendly numeric parsing."""
+    return s.map(_parse_number)
+
+
+def invalid_numeric_values(series):
+    """Return non-empty cell values that fail numeric conversion."""
+    original = series.astype(str).str.strip()
+    converted = num(series)
+
+    nonempty = series.notna() & original.ne("")
+    bad = nonempty & converted.isna()
+
+    return series[bad].astype(str).tolist()
 
 def fs(v, n):
     if v is None or not np.isfinite(v):
@@ -331,10 +441,14 @@ else:
     f = st.sidebar.file_uploader(TXT["uploadbox"], type=["csv"])
     if f is not None:
         try:
-            df = pd.read_csv(f, dtype=str)
+            raw_bytes = f.getvalue()
+            try:
+                file_text = raw_bytes.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                file_text = raw_bytes.decode("latin-1")
+            df = read_data(file_text)
         except Exception:
-            f.seek(0)
-            df = pd.read_csv(f, sep=";", dtype=str)
+            df = None
 
 if df is None or df.shape[1] < 2:
     st.info(TXT["needdata"])
@@ -346,6 +460,21 @@ st.dataframe(df, use_container_width=True, height=240)
 numeric_cols = [c for c in df.columns if num(df[c]).notna().sum() >= 2]
 if len(numeric_cols) < 2:
     st.error(TXT["neednum"])
+    st.info(TXT["numhint"])
+
+    # Show a few examples that failed conversion, when available.
+    problem_examples = []
+    for col in df.columns:
+        bad = invalid_numeric_values(df[col])
+        for value in bad[:3]:
+            problem_examples.append(f"{col}: {value}")
+
+    if problem_examples:
+        st.caption(
+            TXT["badvalues"].format(
+                values="; ".join(problem_examples[:6])
+            )
+        )
     st.stop()
 
 # ---------------------------------------------------------
@@ -360,6 +489,26 @@ if st.session_state.get("y_col") not in numeric_cols:
 
 xcol = st.sidebar.selectbox(TXT["xvar"], numeric_cols, key="x_col")
 ycol = st.sidebar.selectbox(TXT["yvar"], numeric_cols, key="y_col")
+
+bad_x = invalid_numeric_values(df[xcol])
+bad_y = invalid_numeric_values(df[ycol])
+
+if bad_x or bad_y:
+    st.error(TXT["nonnumeric"])
+    st.info(TXT["numhint"])
+
+    details = []
+    if bad_x:
+        details.extend([f"{xcol}: {v}" for v in bad_x[:4]])
+    if bad_y:
+        details.extend([f"{ycol}: {v}" for v in bad_y[:4]])
+
+    st.caption(
+        TXT["badvalues"].format(
+            values="; ".join(details[:8])
+        )
+    )
+    st.stop()
 
 xv = num(df[xcol])
 yv = num(df[ycol])
